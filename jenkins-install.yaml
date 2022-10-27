@@ -1,0 +1,65 @@
+---
+- hosts: all
+  become: true
+  tasks:
+  - name: Create a jenkins user 
+    user: 
+      name: jenkins
+      password: jenkins
+      group: sudo
+  - name: Setting up a basic Firewall
+    ufw:
+      rule: allow
+      name: OpenSSH
+  - name: Enable the Firewall
+    ufw:
+      state: enabled
+  - name: Add the root account ssh keys to jenkins user
+    shell: rsync --archive --chown=jenkins:jenkins ~/.ssh /home/jenkins
+  - name: Update the Package Index
+    apt:
+      update_cache: yes 
+  - name: Install JRE & JDK
+    package:
+      name: 
+        - default-jre
+        - default-jdk
+      state: present
+  - name: Set Java Environment Variable
+    lineinfile:
+      path: /etc/environment
+      line: JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"
+      owner: root
+      group: root
+  - name: Check the java environmental variable
+    shell: echo $JAVA_HOME
+    register: result
+  - debug:
+      var: result.stdout_lines
+  - name: Add the Repository Key
+    apt_key:
+      url: https://pkg.jenkins.io/debian-stable/jenkins.io.key
+      state: present
+  - name: Append the Debian package repository address to the server's sources.list
+    shell: sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
+  - name: To Use the New Repository we have to Update the Package Index
+    apt:
+      update_cache: yes
+  - name: Install Jenkins
+    package:
+      name: jenkins
+      state: present
+  - name: Start jenkins
+    service:
+      name: jenkins
+      state: started
+  - name: Opening a Firewall
+    ufw:
+      rule: allow
+      port: '8080'
+      proto: tcp
+  - name: To Display The Password
+    shell: cat /var/lib/jenkins/secrets/initialAdminPassword
+    register: password
+  - debug:
+      var: password.stdout_lines
